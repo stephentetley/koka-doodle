@@ -17,6 +17,14 @@ fun empty(): iterator<e, a>
 fun singleton(a: a): alloc<h> iterator<<read<h>, write<h>|e>, a>
   repeat(1, a)
 
+fun iterate(f: () -> e maybe<a>) : iterator<e, a>
+  fun f1()
+    match f()
+      Just(a) -> Ans(a)
+      Nothing -> Done
+  Iterator(iter = f1)
+
+
 fun repeat(n : int, a : a) : alloc<h> iterator<<read<h>, write<h>|e>, a>
   val ix = ref(n)
   val iter1 = fn()
@@ -94,7 +102,7 @@ fun takeWhile(f : a -> <div|e> bool, iter1 : iterator<<div|e>, a>) : iterator<<d
       Done   -> Done
   Iterator(iter = loop)
         
-fun foldLeft(f: (b, a) -> <div|e> b, s: b, iter1 : iterator<<div|e>, a>): <div|e> b 
+fun foldLeft(iter1 : iterator<<div|e>, a>, f : (b, a) -> <div|e> b, s: b) : <div|e> b 
   val iterF = iter1.iter
   fun loop(acc)
     match iterF()
@@ -123,6 +131,111 @@ fun forEach(iter1 : iterator<<div|e>, a>, f : a -> <div|e> ()) : <div|e> ()
       Done  -> ()
   loop()
 
+fun map(iter1 : iterator<<div|e>, a>, f : a -> <div|e> b) : iterator<<div|e>, b>
+  val iterF = iter1.iter
+  fun loop()
+    match iterF()
+      Ans(a) -> Ans(f(a))
+      Skip   -> Skip
+      Done   -> Done
+  Iterator(iter = loop)
+
+fun filter(iter1 : iterator<<div|e>, a>, f : a -> <div|e> bool) : iterator<<div|e>, a>
+  val iterF = iter1.iter
+  fun loop()
+    match iterF()
+      Ans(a) -> if (f(a)) then Ans(a) else Skip
+      Skip   -> Skip
+      Done   -> Done
+  Iterator(iter = loop)
+
+fun append(iter1 : iterator<<div|e>, a>, iter2 : iterator<<div|e>, a>) : iterator<<div|e>, a>
+  val iter1F = iter1.iter
+  val iter2F = iter2.iter
+  fun loop2()
+    match iter2F()
+      Ans(a) -> Ans(a)
+      Skip   -> loop2()
+      Done   -> Done
+  fun loop1() 
+    match iter1F()
+      Ans(a) -> Ans(a)
+      Skip   -> loop1()
+      Done   -> loop2()
+  Iterator(iter = loop1)
+    
+fun sum(iter : iterator<<div|e>, int>) : <div|e> int
+  sumwith(iter, id)
+
+fun sumwith(iter: iterator<<div|e>, a>, f : a -> <div|e> int) : <div|e> int
+  foldLeft(iter, fn(acc, x){acc + f(x)}, 0)
+
+fun zip(iter1 : iterator<<div|e>, a>, iter2 : iterator<<div|e>, b>) : iterator<<div|e>, (a,b)>
+  zipwith(iter1, iter2, fn(a,b){(a,b)})
+
+fun zipwith(iter1 : iterator<<div|e>, a>, iter2 : iterator<<div|e>, b>, f : (a, b) -> <div|e> c) : iterator<<div|e>, c>
+  val iter1F = iter1.iter
+  val iter2F = iter2.iter
+  fun loop()
+    match (iter1F(), iter2F())
+      (Ans(a), Ans(b)) -> Ans(f(a, b))
+      (Ans(a), Skip)   -> zipWithGoRight(iter2F, fn(b){f(a, b)})
+      (Skip, Ans(b))   -> zipWithGoLeft(iter1F, fn(a){f(a, b)})
+      (Skip, Skip)     -> Skip
+      (_, _)           -> Done
+  Iterator(iter = loop)
+
+fun zipWithGoLeft(iterF : () -> e step<a>, f : a -> e c) : e step<c>
+  match iterF()
+    Ans(a) -> Ans(f(a))
+    Skip   -> zipWithGoLeft(iterF, f)
+    Done   -> Done
+
+fun zipWithGoRight(iterF : () -> e step<b>, f : b -> e c) : e step<c>
+  match iterF()
+    Ans(b) -> Ans(f(b))
+    Skip   -> zipWithGoRight(iterF, f)
+    Done   -> Done
+
+fun filterMap(iter1 : iterator<e, a>, f: a -> e maybe<b>) : iterator<e, b>
+  val iterF = iter1.iter
+  fun loop()
+    match iterF()
+      Ans(a) -> 
+        match (f(a))
+          Just(a1) -> Ans(a1)
+          Nothing  -> Skip
+            }
+      Skip   -> Skip
+      Done   -> Done
+  Iterator(iter = loop)
+
+fun flatmap(iter1 : iterator<<div,read<h>,write<h>|e>, a>, f : (a) -> <div,read<h>,write<h>|e> iterator<<read<h>,div,write<h>|e>, b>) : alloc<h> iterator<<div,read<h>,write<h>|e>, b>
+  val iterF = iter1.iter
+  val innerIter = ref(empty())
+  val inside = ref(False)
+  fun innerloop()
+    val inner1 = !innerIter
+    val innerF = inner1.iter
+    match innerF()
+      Ans(b) -> Ans(b)
+      Skip   -> innerloop()
+      Done   -> Done
+  fun outerloop()
+    val inside1 = !inside
+    if inside1
+      then 
+        match innerloop()
+          Done -> {inside := False; outerloop()}
+          ans  -> ans
+      else
+        match iterF()
+          Ans(a) -> {inside := True; innerIter := f(a); outerloop()}
+          Skip   -> outerloop()
+          Done   -> Done
+  Iterator(iter = outerloop)
+
+
 fun run1() 
   val tenIter = repeat(10, 'a')
   val xs = toList(tenIter)
@@ -142,14 +255,14 @@ fun run4()
 
 fun run5()   
   val iter1 = range(1, 15)
-  val iter2 = takeWhile(fun(x){x < 10}, iter1)
+  val iter2 = takeWhile(fn(x){x < 10}, iter1)
   println("run5 takeWhile...")
   forEach(iter2, println)
 
 
 fun run6()
   val iter1 = range(1, 15)
-  val iter2 = dropWhile(fun(x){x < 10}, iter1)
+  val iter2 = dropWhile(fn(x){x < 10}, iter1)
   println("run6 dropWhile...")
   forEach(iter2, println)
 
