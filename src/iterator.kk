@@ -1,7 +1,8 @@
 // iterator.kk
+// Redoing Flix's Iterator.flix in Koka
 
 type step<a>
-  Ans(ans: a)
+  Ans(ans : a)
   Skip
   Done
 
@@ -49,6 +50,50 @@ fun next(iter1 : iterator<<div|e>, a>) : <div|e> maybe<a>
   loop()
 
 
+fun drop(n : int, iter1 : iterator<<div, read<h>, write<h>|e>, a>) : alloc<h> iterator<<div, read<h>, write<h>|e>, a>
+  val iterF = iter1.iter
+  val ix = ref(n)
+  fun loop()
+    val i = !ix
+    ix := i - 1
+    match iterF()
+      Ans(a)  -> if (i > 0) then loop() else Ans(a)
+      Skip    -> loop()
+      Done    -> Done
+  Iterator(iter = loop)
+
+fun take(n : int, iter1 : iterator<<div, read<h>, write<h>|e>, a>) : alloc<h> iterator<<div, read<h>, write<h>|e>, a>
+  val iterF = iter1.iter
+  val ix = ref(n)
+  fun loop()
+      val i = !ix;
+      if i < 1
+        then Done
+        else
+          match iterF()
+            Ans(a) -> {ix := i - 1; Ans(a)}
+            Skip   -> Skip
+            Done   -> Done
+  Iterator(iter = loop)
+    
+fun dropWhile(f : a -> <div|e> bool, iter1 : iterator<<div|e>, a>) : iterator<<div|e>, a>
+  val iterF = iter1.iter
+  fun loop()
+    match iterF()
+      Ans(a) -> if (f(a)) then loop() else Ans(a)
+      Skip   -> loop()
+      Done   -> Done
+  Iterator(iter = loop)
+
+fun takeWhile(f : a -> <div|e> bool, iter1 : iterator<<div|e>, a>) : iterator<<div|e>, a>
+  val iterF = iter1.iter
+  fun loop()
+    match iterF()
+      Ans(a) -> if (f(a)) then Ans(a) else Done
+      Skip   -> loop()
+      Done   -> Done
+  Iterator(iter = loop)
+        
 fun foldLeft(f: (b, a) -> <div|e> b, s: b, iter1 : iterator<<div|e>, a>): <div|e> b 
   val iterF = iter1.iter
   fun loop(acc)
@@ -95,9 +140,23 @@ fun run4()
   val rngIter = range(3, 7)
   forEach(rngIter, println)
 
+fun run5()   
+  val iter1 = range(1, 15)
+  val iter2 = takeWhile(fun(x){x < 10}, iter1)
+  println("run5 takeWhile...")
+  forEach(iter2, println)
+
+
+fun run6()
+  val iter1 = range(1, 15)
+  val iter2 = dropWhile(fun(x){x < 10}, iter1)
+  println("run6 dropWhile...")
+  forEach(iter2, println)
 
 fun main() : <console, div> ()
   run1()
   run2()
   run3()
   run4()
+  run5()
+  run6()
