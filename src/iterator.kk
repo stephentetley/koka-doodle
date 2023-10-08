@@ -149,6 +149,14 @@ fun filter(iter1 : iterator<<div|e>, a>, f : a -> <div|e> bool) : iterator<<div|
       Done   -> Done
   Iterator(iter = loop)
 
+fun cons(x : a, iter1 : iterator<<write<h>,read<h>|e>, a>) : alloc<h> iterator<<read<h>,write<h>|e>, a>
+  val iterF = iter1.iter
+  val first = ref(True)
+  fun loop()
+    val isFirst = !first
+    if isFirst then {first := False; Ans(x)} else iterF()
+  Iterator(iter = loop)
+
 fun append(iter1 : iterator<<div|e>, a>, iter2 : iterator<<div|e>, a>) : iterator<<div|e>, a>
   val iter1F = iter1.iter
   val iter2F = iter2.iter
@@ -197,7 +205,7 @@ fun zipWithGoRight(iterF : () -> e step<b>, f : b -> e c) : e step<c>
     Skip   -> zipWithGoRight(iterF, f)
     Done   -> Done
 
-fun filterMap(iter1 : iterator<e, a>, f: a -> e maybe<b>) : iterator<e, b>
+fun filtermap(iter1 : iterator<e, a>, f: a -> e maybe<b>) : iterator<e, b>
   val iterF = iter1.iter
   fun loop()
     match iterF()
@@ -210,7 +218,7 @@ fun filterMap(iter1 : iterator<e, a>, f: a -> e maybe<b>) : iterator<e, b>
       Done   -> Done
   Iterator(iter = loop)
 
-fun flatmap(iter1 : iterator<<div,read<h>,write<h>|e>, a>, f : (a) -> <div,read<h>,write<h>|e> iterator<<read<h>,div,write<h>|e>, b>) : alloc<h> iterator<<div,read<h>,write<h>|e>, b>
+fun flatmap(iter1 : iterator<<div,read<h>,write<h>|e>, a>, f : (a) -> <div,read<h>,write<h>|e> iterator<<div,read<h>,write<h>|e>, b>) : alloc<h> iterator<<div,read<h>,write<h>|e>, b>
   val iterF = iter1.iter
   val innerIter = ref(empty())
   val inside = ref(False)
@@ -235,6 +243,21 @@ fun flatmap(iter1 : iterator<<div,read<h>,write<h>|e>, a>, f : (a) -> <div,read<
           Done   -> Done
   Iterator(iter = outerloop)
 
+
+fun intersperse(iter1 : iterator<<div,read<h>,write<h>,alloc<h>|e1>,a>, sep : a) : <alloc<h>|e> iterator<<div,read<h>,write<h>,alloc<h>|e1>, a>
+  val iterF = iter1.iter
+  val start = ref(True)
+  fun step(x)
+    if !start 
+      then 
+        start := False 
+        singleton(x)
+      else 
+        cons(sep, singleton(x))
+  flatmap(iter1, step)
+
+fun flatten(iter1 : iterator<<div,read<h>,write<h>|e>, iterator<<div,read<h>,write<h>|e>, a>>) : alloc<h> iterator<<div,read<h>,write<h>|e>, a>
+  flatmap(iter1, id)
 
 fun run1() 
   val tenIter = repeat(10, 'a')
